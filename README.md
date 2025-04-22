@@ -100,4 +100,8 @@ If you find this work useful in your research, please cite:
   journal={arXiv preprint arXiv:2503.02039},
   year={2025}
 }
-```  
+```
+
+## Acknowledgments
+
+This work was supported in part by National Institutes of Health under grant U01AG070112.
