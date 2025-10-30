@@ -5,7 +5,6 @@ from PIL import Image
 import PIL
 from typing import Callable, List, Optional, Union
 
-
 sd_model = DiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5", local_files_only=False)
 sd_model.to('cuda') # TODO
 sd_model.vae.requires_grad_(False)
