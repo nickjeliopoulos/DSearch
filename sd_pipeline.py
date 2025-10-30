@@ -538,9 +538,6 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
             generator,
             latents,
         )
-        #weights = self.calculate_initial_weight(latents)
-
-
 
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
@@ -724,12 +721,24 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
         search_rate = rates / (len(timesteps)-1)
         print(f'search rate: {search_rate}')
 
-        if output_type == "latent":
-            image = latents
-            has_nsfw_concept = None
-        elif output_type == "pil":
-            # 8. Post-processing
-            image = self.decode_latents(latents)
+        # if output_type == "latent":
+        #     image = latents
+        #     has_nsfw_concept = None
+        # elif output_type == "pil":
+        #     # 8. Post-processing
+        #     image = self.decode_latents(latents)
+
+        #     # 9. Run safety checker
+        #     #############################################
+        #     ## Disabled for correct evaluation of the reward
+        #     #############################################
+        #     #image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
+
+        #     # 10. Convert to PIL
+        #     image = self.numpy_to_pil(image)
+        # else:
+        #     # 8. Post-processing
+        #     image = self.decode_latents(latents)
 
             # 9. Run safety checker
             #############################################
@@ -737,17 +746,7 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
             #############################################
             #image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
 
-            # 10. Convert to PIL
-            image = self.numpy_to_pil(image)
-        else:
-            # 8. Post-processing
-            image = self.decode_latents(latents)
-
-            # 9. Run safety checker
-            #############################################
-            ## Disabled for correct evaluation of the reward
-            #############################################
-            #image, has_nsfw_concept = self.run_safety_checker(image, device, prompt_embeds.dtype)
+        image = self.image_processor.postprocess(image, output_type=output_type, do_denormalize=[True] * image.shape[0])
 
         ##############
         has_nsfw_concept = False
@@ -802,10 +801,20 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
                                 t,
                                 latents
                             )
-            images = self.decode_latents(pred_original_sample)
-            images = (images * 255).round().astype("uint8")
+            # images = self.decode_latents(pred_original_sample)
+            # images = (images * 255).round().astype("uint8")
+
+            images = self.image_processor.postprocess(
+                pred_original_sample, output_type="pil", do_denormalize=[False] * pred_original_sample.shape[0]
+            )
+            # Ensure all returned PIL images are RGB (not RGBA)
+            if isinstance(images, list):
+                images = [img.convert("RGB") if getattr(img, "mode", None) != "RGB" else img for img in images]
+
             weights = self.scorer(images)
-            return weights           
+
+            return weights
+
         ## Calculate E[x_0|x_t]
         if self.variant == 'PM':
             pred_original_sample = predict_x0_from_xt(
@@ -959,7 +968,7 @@ class Decoding_SDPipeline(StableDiffusionPipeline):
         do_classifier_free_guidance = guidance_scale > 1.0
 
         # 3. Encode input prompt
-        prompt_embeds = self._encode_prompt(
+        prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
             device,
             num_images_per_prompt,
@@ -968,6 +977,9 @@ class Decoding_SDPipeline(StableDiffusionPipeline):
             prompt_embeds=prompt_embeds,
             negative_prompt_embeds=negative_prompt_embeds,
         )
+
+        if do_classifier_free_guidance:
+            prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -985,9 +997,6 @@ class Decoding_SDPipeline(StableDiffusionPipeline):
             generator,
             latents,
         )
-        #weights = self.calculate_initial_weight(latents)
-
-
 
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)

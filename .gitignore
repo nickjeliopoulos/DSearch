@@ -177,3 +177,5 @@ cython_debug/
 .pypirc
 
 job_*.sh
+*.out
+*.log

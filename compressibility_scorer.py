@@ -39,20 +39,33 @@ class JPEG_class:
         
         return -np.array(sizes)
     
-def jpeg_compressibility(images):
-    if isinstance(images, torch.Tensor):
-        images = (images * 255).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
-        images = images.transpose(0, 2, 3, 1)  # NCHW -> NHWC
-    pil_images = [Image.fromarray(image) for image in images]
 
+
+### JPEG Compression
+def jpeg_compressibility(images):
     sizes = []
-    with contextlib.ExitStack() as stack:
-        buffers = [stack.enter_context(io.BytesIO()) for _ in pil_images]
-        for image, buffer in zip(pil_images, buffers):
-            image.save(buffer, format="JPEG", quality=95)
-            sizes.append(buffer.tell() / 1000)  # Size in kilobytes
-    
+    for pil_img in images:
+        buffer = io.BytesIO()
+        pil_img.save(buffer, format="JPEG", quality=95)
+        size = buffer.tell() / 1000.0
+        buffer.close()
+        sizes.append(size)
     return -np.array(sizes)
+
+# def jpeg_compressibility(images):
+#     if isinstance(images, torch.Tensor):
+#         images = (images * 255).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
+#         images = images.transpose(0, 2, 3, 1)  # NCHW -> NHWC
+#     pil_images = [Image.fromarray(image) for image in images]
+
+#     sizes = []
+#     with contextlib.ExitStack() as stack:
+#         buffers = [stack.enter_context(io.BytesIO()) for _ in pil_images]
+#         for image, buffer in zip(pil_images, buffers):
+#             image.save(buffer, format="JPEG", quality=95)
+#             sizes.append(buffer.tell() / 1000)  # Size in kilobytes
+    
+#     return -np.array(sizes)
 
 def classify_compressibility_scores(y):
     # Applying thresholds to map scores to classes
