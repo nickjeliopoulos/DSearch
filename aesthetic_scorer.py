@@ -11,8 +11,9 @@ from torch.utils.checkpoint import checkpoint
 from diffusers_patch.utils import TemperatureScaler
 import torchvision
 import hpsv2
+import ImageReward
 from hpsv2.src.open_clip import create_model_and_transforms, get_tokenizer
-
+from diffusers.utils import numpy_to_pil, pt_to_pil
 
 ASSETS_PATH = resources.files("assets")
 
@@ -89,6 +90,29 @@ class MLPDiff(nn.Module):
         for layer in list(self.layers)[:-1]:
             embed = layer(embed)
         return embed
+
+def handle_input(img: torch.Tensor | np.ndarray, skip: bool = False) -> Image:
+    if skip:
+        return img
+    if isinstance(img, torch.Tensor):
+        pil_imgs = pt_to_pil(img)
+    elif isinstance(img, np.ndarray):
+        pil_imgs = numpy_to_pil(img)
+    else:
+        pil_imgs = img
+    return pil_imgs
+
+class ImageRewardScorer(torch.nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        self.imagereward_model = ImageReward.load("ImageReward-v1.0", device=self.device)
+        self.imagereward_model = self.imagereward_model.eval()
+
+    def __call__(self, images, prompts):
+        imagesx = handle_input(images)
+        rewards = self.imagereward_model.score(prompts, imagesx)
+        return torch.Tensor([rewards]), None
 
 class AestheticScorerDiff(torch.nn.Module):
     def __init__(self, dtype):

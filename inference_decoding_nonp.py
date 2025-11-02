@@ -15,7 +15,7 @@ import json
 
 from sd_pipeline import DPS_continuous_SDPipeline, Decoding_nonbatch_SDPipeline
 from compressibility_scorer import CompressibilityScorerDiff, jpeg_compressibility, CompressibilityScorer_modified
-from aesthetic_scorer import AestheticScorerDiff, hpsScorer, AestheticScorerDiff_Time, MLPDiff
+from aesthetic_scorer import AestheticScorerDiff, hpsScorer, AestheticScorerDiff_Time, MLPDiff, ImageRewardScorer
 
 def measure_torch_device_memory_used_mb(device: torch.device) -> float:
 	"""
@@ -94,11 +94,6 @@ def main(args: argparse.Namespace):
 	assert args.oversamplerate == 1 or args.replacerate == 0.0
 	assert args.variant in ['PM', 'MC']
 
-	wandb.init(
-		project="inference-dsearch",
-		config=vars(args)
-	)
-
 	### seed everything
 	torch.manual_seed(args.seed)
 	random.seed(args.seed)
@@ -112,24 +107,35 @@ def main(args: argparse.Namespace):
 	else:
 		DDES_type = 'SVDD'
 
+
+	# wandb_args = dict(vars(args))
+	# wandb_args["DDES_type"] = DDES_type
+
+	wandb.init(
+		project="inference-dsearch",
+		config=vars(args)
+	)
+
 	### Initialization
 	device = "cuda:0" if torch.cuda.is_available() else "cpu"
 	device = torch.device(device)
+	pipe_dtype = torch.bfloat16
+	score_dtype = torch.float32
 
-	pipe = Decoding_nonbatch_SDPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5")
+	pipe = Decoding_nonbatch_SDPipeline.from_pretrained("stable-diffusion-v1-5/stable-diffusion-v1-5", torch_dtype=pipe_dtype)
 	pipe.to(device)
 
 	# switch to DDIM scheduler
 	pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config)
 	pipe.scheduler.set_timesteps(args.timesteps, device=device)
 
-	# pipe.vae.requires_grad_(False)
-	# pipe.text_encoder.requires_grad_(False)
-	# pipe.unet.requires_grad_(False)
+	pipe.vae.requires_grad_(False)
+	pipe.text_encoder.requires_grad_(False)
+	pipe.unet.requires_grad_(False)
 
-	# pipe.vae.eval()
-	# pipe.text_encoder.eval()
-	# pipe.unet.eval()
+	pipe.vae.eval()
+	pipe.text_encoder.eval()
+	pipe.unet.eval()
 
 	if args.reward == 'compressibility':
 		if args.variant == 'PM':
@@ -149,6 +155,9 @@ def main(args: argparse.Namespace):
 			scorer = hpsScorer(inference_dtype=torch.float32, device=device).to(device)
 		else:
 			raise ValueError("Invalid variant")
+	elif args.reward == "imagereward":
+		scorer = ImageRewardScorer(device)
+		scorer = scorer.to(device)
 	else:
 		raise ValueError("Invalid reward")
 
@@ -167,11 +176,14 @@ def main(args: argparse.Namespace):
 	progress_bar = enumerate(prompt_data)
 	# progress_bar = tqdm(prompt_data)
 
+	init_latents_shape = (len(prompt_data), (args.bs*args.oversamplerate) , 4, 64, 64)
+	init_latents = torch.randn(init_latents_shape, device=device, dtype=pipe_dtype)
+
 	for prompt_idx, item in progress_bar:
-		prompt = [item["prompt"]] * args.bs
+		prompt = item["prompt"] #[item["prompt"]] * args.bs
 		start_time = datetime.now()
 		
-		images, kl_losses, cur_prompt = pipe(prompt, num_images_per_prompt=1, eta=1.0)
+		images, kl_losses, cur_prompt = pipe([prompt] * args.bs, num_images_per_prompt=1, eta=1.0, latents=init_latents[prompt_idx])
 
 		end_time = datetime.now()
 
@@ -180,6 +192,9 @@ def main(args: argparse.Namespace):
 
 		### Evaluate each generated image with the scorer and compute statistics
 		rewards = scorer(images)
+
+		if isinstance(rewards, Tuple):
+			rewards = rewards[0]
 
 		### Get indices that sort by reward (descending)
 		reward_ranked_indices = np.argsort(rewards)[::-1]
@@ -195,8 +210,6 @@ def main(args: argparse.Namespace):
 
 		### INFO!
 		print(f"Prompt {item["prompt"][:12]}... Stats: {args.reward:<5} | mean: {mean:8.4f} | max: {maxv:8.4f} | min: {minv:8.4f} | std: {stdv:8.4f}, took {running_time:.3f}s")
-
-		### Evaluate!
 
 		### Loggit
 		wandb_log(

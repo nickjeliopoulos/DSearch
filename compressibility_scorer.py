@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from transformers import CLIPModel
 from PIL import Image
 from torch.utils.checkpoint import checkpoint
+from diffusers.utils import numpy_to_pil, pt_to_pil
 
 import contextlib
 import io
@@ -42,30 +43,41 @@ class JPEG_class:
 
 
 ### JPEG Compression
-def jpeg_compressibility(images):
-    sizes = []
-    for pil_img in images:
-        buffer = io.BytesIO()
-        pil_img.save(buffer, format="JPEG", quality=95)
-        size = buffer.tell() / 1000.0
-        buffer.close()
-        sizes.append(size)
-    return -np.array(sizes)
-
 # def jpeg_compressibility(images):
-#     if isinstance(images, torch.Tensor):
-#         images = (images * 255).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
-#         images = images.transpose(0, 2, 3, 1)  # NCHW -> NHWC
-#     pil_images = [Image.fromarray(image) for image in images]
-
 #     sizes = []
-#     with contextlib.ExitStack() as stack:
-#         buffers = [stack.enter_context(io.BytesIO()) for _ in pil_images]
-#         for image, buffer in zip(pil_images, buffers):
-#             image.save(buffer, format="JPEG", quality=95)
-#             sizes.append(buffer.tell() / 1000)  # Size in kilobytes
-    
+#     for pil_img in images:
+#         buffer = io.BytesIO()
+#         pil_img.save(buffer, format="JPEG", quality=95)
+#         size = buffer.tell() / 1000.0
+#         buffer.close()
+#         sizes.append(size)
 #     return -np.array(sizes)
+
+def jpeg_compressibility(images):
+    if isinstance(images, torch.Tensor):
+        images = (images * 255).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
+        images = images.transpose(0, 2, 3, 1)  # NCHW -> NHWC
+        pil_images = [Image.fromarray(image) for image in images]
+
+    if isinstance(images, np.ndarray):
+        pil_images = numpy_to_pil(images)
+
+    elif isinstance(images, list):
+        if not isinstance(images[0], Image.Image):
+            raise ValueError(f"Images must contain PIL Images if it is a List - instead it contains {type(images[0])}")
+        pil_images = [image for image in images]
+
+    else:
+        raise ValueError(f"Images type {type(images)} unsupported")
+    
+    sizes = []
+    with contextlib.ExitStack() as stack:
+        buffers = [stack.enter_context(io.BytesIO()) for _ in pil_images]
+        for image, buffer in zip(pil_images, buffers):
+            image.save(buffer, format="JPEG", quality=95)
+            sizes.append(buffer.tell() / 1000)  # Size in kilobytes
+    
+    return -np.array(sizes)
 
 def classify_compressibility_scores(y):
     # Applying thresholds to map scores to classes
