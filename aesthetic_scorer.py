@@ -103,16 +103,41 @@ def handle_input(img: torch.Tensor | np.ndarray, skip: bool = False) -> Image:
     return pil_imgs
 
 class ImageRewardScorer(torch.nn.Module):
-    def __init__(self, device):
+    def __init__(self, device: torch.device, inference_dtype: torch.dtype = torch.float32):
         super().__init__()
         self.device = device
+        self.inference_dtype = inference_dtype
         self.imagereward_model = ImageReward.load("ImageReward-v1.0", device=self.device)
         self.imagereward_model = self.imagereward_model.eval()
 
     def __call__(self, images, prompts):
-        imagesx = handle_input(images)
-        rewards = self.imagereward_model.score(prompts, imagesx)
-        return torch.Tensor([rewards]), None
+        # imagesx = handle_input(images)
+        if isinstance(images, torch.Tensor):
+            images = (images * 255).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
+            images = images.transpose(0, 2, 3, 1)  # NCHW -> NHWC
+            pil_images = [Image.fromarray(image) for image in images]
+
+        if isinstance(images, np.ndarray):
+            pil_images = numpy_to_pil(images)
+
+        elif isinstance(images, list):
+            if not isinstance(images[0], Image.Image):
+                raise ValueError(f"Images must contain PIL Images if it is a List - instead it contains {type(images[0])}")
+            pil_images = [image for image in images]
+
+        else:
+            raise ValueError(f"Images type {type(images)} unsupported")
+
+        if isinstance(prompts, list):
+            prompt = prompts[0]
+        elif isinstance(prompts, str):
+            prompt = prompts
+        else:
+            raise ValueError(f"Prompts of type {type(prompts)} invalid")
+
+        rewards = self.imagereward_model.score(prompt, pil_images)
+        
+        return torch.tensor(rewards, dtype=self.inference_dtype), None
 
 class AestheticScorerDiff(torch.nn.Module):
     def __init__(self, dtype):

@@ -540,8 +540,6 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
         )
         #weights = self.calculate_initial_weight(latents)
 
-
-
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
@@ -660,6 +658,7 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
                             weights = torch.from_numpy(weights)
                         else: 
                             weights = weights.cpu().detach()
+                        print(f"[Raw] Weight Shape: {weights.shape}")
                         weights_list.append(weights)
                         latents_list.append(latents_duplicate.cpu().detach())
 
@@ -670,6 +669,8 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
                     #    index_chosen.append(i *self.duplicate + np.argmax(weights_list[i*self.duplicate : (i+1)*self.duplicate]))
                     #latents = latents_list[index_chosen, :, :, :]
                     index_chosen = torch.argmax(weights_list, dim=0)
+                    # print(f"Weights: {weights_list}\nIndices: {index_chosen}\nLatents Shape: {latents_list.shape}")
+                    print(f"Weight Shape: {weights_list.shape}\nIndices Shape: {index_chosen.shape}\nLatents Shape: {latents_list.shape}")
                     latents = torch.stack([latents_list[index_chosen[i], i]  for i in range(cur_bs)]) # Shape: (cur_bs, C, H, W)
                     latents = latents.to(device)
                     #DDES-E
@@ -794,7 +795,6 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
    
     @torch.no_grad()
     def calculate_weight(self, latents, new_noise_pred, t): # t = 981, 961, 941 ..
-
         if  self.variant == 'PM' and self.reward == 'compressibility':
             pred_original_sample = predict_x0_from_xt(
                                 self.scheduler,
@@ -823,7 +823,8 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
         # resize = torchvision.transforms.Resize(224, antialias=False)
         if self.reward == 'compressibility':
             resize = torchvision.transforms.Resize(512, antialias=False)
-        elif self.reward == 'aesthetic' or self.reward == 'hps':
+        # elif self.reward == 'aesthetic' or self.reward == 'hps':
+        elif self.reward in ['aesthetic', 'hps', 'imagereward']:
             resize = torchvision.transforms.Resize(224, antialias=False)
         else:
             raise ValueError('Invalid reward type')
@@ -834,7 +835,8 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
         im_pix = normalize(im_pix).to(im_pix_un.dtype)
         
         if self.variant == 'PM':
-            if self.reward == 'hps':
+            # if self.reward == 'hps':
+            if self.reward in ['hps', 'imagereward']:
                 weights, _ = self.scorer(im_pix, self.cur_prompt)
             else:
                 weights, _ = self.scorer(im_pix)
@@ -1183,7 +1185,6 @@ class Decoding_SDPipeline(StableDiffusionPipeline):
                 #weights, _ = self.scorer(im_pix)
             
         return weights 
-
 
 
 class DPS_continuous_SDPipeline(StableDiffusionPipeline):
