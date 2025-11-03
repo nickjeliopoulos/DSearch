@@ -136,8 +136,12 @@ class ImageRewardScorer(torch.nn.Module):
             raise ValueError(f"Prompts of type {type(prompts)} invalid")
 
         rewards = self.imagereward_model.score(prompt, pil_images)
+        rewards = torch.tensor(rewards, dtype=self.inference_dtype)
+
+        if rewards.ndim <= 1:
+            rewards = rewards.reshape(-1)
         
-        return torch.tensor(rewards, dtype=self.inference_dtype), None
+        return rewards, None
 
 class AestheticScorerDiff(torch.nn.Module):
     def __init__(self, dtype):
