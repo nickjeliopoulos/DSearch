@@ -658,7 +658,7 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
                             weights = torch.from_numpy(weights)
                         else: 
                             weights = weights.cpu().detach()
-                        print(f"[Raw] Weight Shape: {weights.shape}")
+                        # print(f"[Raw] Weight Shape: {weights.shape}")
                         weights_list.append(weights)
                         latents_list.append(latents_duplicate.cpu().detach())
 
@@ -670,7 +670,7 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
                     #latents = latents_list[index_chosen, :, :, :]
                     index_chosen = torch.argmax(weights_list, dim=0)
                     # print(f"Weights: {weights_list}\nIndices: {index_chosen}\nLatents Shape: {latents_list.shape}")
-                    print(f"Weight Shape: {weights_list.shape}\nIndices Shape: {index_chosen.shape}\nLatents Shape: {latents_list.shape}")
+                    # print(f"Weight Shape: {weights_list.shape}\nIndices Shape: {index_chosen.shape}\nLatents Shape: {latents_list.shape}")
                     latents = torch.stack([latents_list[index_chosen[i], i]  for i in range(cur_bs)]) # Shape: (cur_bs, C, H, W)
                     latents = latents.to(device)
                     #DDES-E

@@ -191,10 +191,12 @@ def main(args: argparse.Namespace):
 		running_time = (end_time - start_time).total_seconds()
 
 		### Evaluate each generated image with the scorer and compute statistics
-		rewards = scorer(images)
+		rewards = scorer(images=images, prompts=prompt)
 
 		if isinstance(rewards, Tuple):
 			rewards = rewards[0]
+		if isinstance(rewards, torch.Tensor):
+			rewards = rewards.cpu().detach().numpy()
 
 		### Get indices that sort by reward (descending)
 		reward_ranked_indices = np.argsort(rewards)[::-1]

@@ -185,7 +185,7 @@ class CompressibilityScorer(torch.nn.Module):
         super().__init__()
         self.dtype = dtype
 
-    def __call__(self, images):
+    def __call__(self, images, *args, **kwargs):
         jpeg_compressibility_scores = jpeg_compressibility(images)
         return torch.tensor(jpeg_compressibility_scores, dtype=images.dtype, device=images.device), images
 
@@ -194,7 +194,7 @@ class CompressibilityScorer_modified(torch.nn.Module):
         super().__init__()
         self.dtype = dtype
 
-    def __call__(self, images):
+    def __call__(self, images, *args, **kwargs):
         jpeg_compressibility_scores = jpeg_compressibility(images)
         return jpeg_compressibility_scores
 
