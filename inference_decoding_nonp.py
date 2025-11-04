@@ -85,7 +85,7 @@ def parse_args():
 	parser.add_argument("--variant", type=str, default="PM")
 	parser.add_argument("--valuefunction", type=str, default="")
 	parser.add_argument("--timesteps", type=int, default=50)
-	parser.add_argument("--prompt_path", type=str, default="open_img_pref_sampled_60.jsonl")
+	parser.add_argument("--prompt_path", type=str, choices=["open_img_pref_sampled_60.jsonl", "drawbench.jsonl"], default="open_img_pref_sampled_60.jsonl")
 	args = parser.parse_args()
 	return args
 
