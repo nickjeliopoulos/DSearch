@@ -11,8 +11,8 @@ from torch.utils.checkpoint import checkpoint
 from diffusers_patch.utils import TemperatureScaler
 import torchvision
 import hpsv2
-import ImageReward
 from hpsv2.src.open_clip import create_model_and_transforms, get_tokenizer
+import ImageReward
 from diffusers.utils import numpy_to_pil, pt_to_pil
 
 ASSETS_PATH = resources.files("assets")
@@ -101,6 +101,37 @@ def handle_input(img: torch.Tensor | np.ndarray, skip: bool = False) -> Image:
     else:
         pil_imgs = img
     return pil_imgs
+
+class HPSV2Scorer(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, images, prompts) -> float:
+        if isinstance(images, torch.Tensor):
+            images = (images * 255).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
+            images = images.transpose(0, 2, 3, 1)  # NCHW -> NHWC
+            pil_images = [Image.fromarray(image) for image in images]
+
+        if isinstance(images, np.ndarray):
+            pil_images = numpy_to_pil(images)
+
+        elif isinstance(images, list):
+            if not isinstance(images[0], Image.Image):
+                raise ValueError(f"Images must contain PIL Images if it is a List - instead it contains {type(images[0])}")
+            pil_images = [image for image in images]
+
+        else:
+            raise ValueError(f"Images type {type(images)} unsupported")
+
+        if isinstance(prompts, list):
+            prompt = prompts[0]
+        elif isinstance(prompts, str):
+            prompt = prompts
+        else:
+            raise ValueError(f"Prompts of type {type(prompts)} invalid")
+
+        score = hpsv2.score(pil_images, prompt, hps_version="v2.0")
+        return torch.Tensor(score), None
 
 class ImageRewardScorer(torch.nn.Module):
     def __init__(self, device: torch.device, inference_dtype: torch.dtype = torch.float32):
