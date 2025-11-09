@@ -34,6 +34,7 @@ def wandb_log(
 	mean_fitness, 
 	min_fitness, 
 	std_fitness,
+	raw_fitness: list,
 	prompt: str, 
 	running_time: float, 
 	device: torch.device
@@ -41,6 +42,7 @@ def wandb_log(
 	wandb.log(
 		{
 			"step": step,
+			"raw_fitness": raw_fitness,
 			"pop_best_eval": max_fitness,
 			"mean_eval": mean_fitness,
 			"min_eval": min_fitness,
@@ -217,6 +219,7 @@ def main(args: argparse.Namespace):
 		wandb_log(
 			step=1,
 			image=images[0],
+			raw_fitness=ranked_rewards.tolist(),
 			max_fitness=maxv,
 			mean_fitness=mean,
 			min_fitness=minv,
