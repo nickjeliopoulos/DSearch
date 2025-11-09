@@ -368,9 +368,9 @@ class CLIPScorer(torch.nn.Module):
             truncation=True,
         ).to(device=self.device)
         outputs = self.clip_model(**inputs)
-        score = outputs[0][0]
+        # score = outputs[0][0]
 
-        return score, None
+        return outputs[0][:, 0], None
 
 
 if __name__ == "__main__":
