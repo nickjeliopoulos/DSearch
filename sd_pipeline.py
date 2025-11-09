@@ -824,7 +824,7 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
         if self.reward == 'compressibility':
             resize = torchvision.transforms.Resize(512, antialias=False)
         # elif self.reward == 'aesthetic' or self.reward == 'hps':
-        elif self.reward in ['aesthetic', 'hps', 'imagereward']:
+        elif self.reward in ['aesthetic', 'hps', 'imagereward', 'clip']:
             resize = torchvision.transforms.Resize(224, antialias=False)
         else:
             raise ValueError('Invalid reward type')
@@ -836,7 +836,7 @@ class Decoding_nonbatch_SDPipeline(StableDiffusionPipeline):
         
         if self.variant == 'PM':
             # if self.reward == 'hps':
-            if self.reward in ['hps', 'imagereward']:
+            if self.reward in ['hps', 'imagereward', 'clip']:
                 weights, _ = self.scorer(im_pix, self.cur_prompt)
             else:
                 weights, _ = self.scorer(im_pix)

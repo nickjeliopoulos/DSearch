@@ -322,6 +322,57 @@ class condition_AestheticScorerDiff(torch.nn.Module):
         return probabilities, embed
 
 
+class CLIPScorer(torch.nn.Module):
+    def __init__(self, inference_dtype, device):
+        super().__init__()
+        self.clip_model_name = "openai/clip-vit-base-patch16"
+        self.dtype = inference_dtype
+        self.device = device
+
+        self.processor = CLIPProcessor.from_pretrained(self.clip_model_name)
+        self.clip_model = CLIPModel.from_pretrained(
+            self.clip_model_name, 
+            torch_dtype=self.dtype
+        ).eval().to(device=device)
+        
+    def __call__(self, images, prompts):
+        if isinstance(images, torch.Tensor):
+            images = (images * 255).round().clamp(0, 255).to(torch.uint8).cpu().numpy()
+            images = images.transpose(0, 2, 3, 1)  # NCHW -> NHWC
+            pil_images = [Image.fromarray(image) for image in images]
+
+        if isinstance(images, np.ndarray):
+            pil_images = numpy_to_pil(images)
+
+        elif isinstance(images, list):
+            if not isinstance(images[0], Image.Image):
+                raise ValueError(f"Images must contain PIL Images if it is a List - instead it contains {type(images[0])}")
+            pil_images = [image for image in images]
+
+        else:
+            raise ValueError(f"Images type {type(images)} unsupported")
+
+        if isinstance(prompts, list):
+            prompt = prompts[0]
+        elif isinstance(prompts, str):
+            prompt = prompts
+        else:
+            raise ValueError(f"Prompts of type {type(prompts)} invalid")
+
+        ### Man I hate this
+        inputs = self.processor(
+            text=prompt,
+            images=images,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+        ).to(device=self.device)
+        outputs = self.clip_model(**inputs)
+        score = outputs[0][0]
+
+        return score, None
+
+
 if __name__ == "__main__":
     model = SinusoidalTimeMLP()
     embed = torch.randn(32, 768)

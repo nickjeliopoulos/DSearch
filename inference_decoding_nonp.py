@@ -15,7 +15,7 @@ import json
 
 from sd_pipeline import DPS_continuous_SDPipeline, Decoding_nonbatch_SDPipeline
 from compressibility_scorer import CompressibilityScorerDiff, jpeg_compressibility, CompressibilityScorer_modified
-from aesthetic_scorer import AestheticScorerDiff, hpsScorer, AestheticScorerDiff_Time, MLPDiff, ImageRewardScorer
+from aesthetic_scorer import AestheticScorerDiff, hpsScorer, AestheticScorerDiff_Time, MLPDiff, ImageRewardScorer, CLIPScorer
 
 def measure_torch_device_memory_used_mb(device: torch.device) -> float:
 	"""
@@ -157,6 +157,9 @@ def main(args: argparse.Namespace):
 			scorer = hpsScorer(inference_dtype=torch.float32, device=device).to(device)
 		else:
 			raise ValueError("Invalid variant")
+	elif args.reward == 'clip':
+		scorer = CLIPScorer(inference_dtype=torch.float32, device=device)
+		scorer = scorer.to(device)
 	elif args.reward == "imagereward":
 		scorer = ImageRewardScorer(device)
 		scorer = scorer.to(device)
