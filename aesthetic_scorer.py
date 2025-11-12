@@ -12,6 +12,9 @@ from diffusers_patch.utils import TemperatureScaler
 import torchvision
 import hpsv2
 from hpsv2.src.open_clip import create_model_and_transforms, get_tokenizer
+
+from hpsv2x_patch.hpsv2x_score import score as hpsv2x_patched_score
+
 import ImageReward
 from diffusers.utils import numpy_to_pil, pt_to_pil
 
@@ -130,7 +133,8 @@ class HPSV2Scorer(torch.nn.Module):
         else:
             raise ValueError(f"Prompts of type {type(prompts)} invalid")
 
-        score = hpsv2.score(pil_images, prompt, hps_version="v2.0")
+        # score = hpsv2.score(pil_images, prompt, hps_version="v2.0")
+        score = hpsv2x_patched_score(pil_images, prompt, hps_version="v2.0")
         return torch.Tensor(score), None
 
 class ImageRewardScorer(torch.nn.Module):
@@ -263,15 +267,15 @@ class hpsScorer(torch.nn.Module):
                                                      std=[0.26862954, 0.26130258, 0.27577711])
 
     # def score_fn(im_pix, prompts):
-    def __call__(self, x_var, prompts, processed=True):
+    def __call__(self, images, prompts, processed=True):
         if not processed:
-            im_pix = x_var
+            im_pix = images
             im_pix = ((im_pix / 2) + 0.5).clamp(0, 1)
-            x_var = torchvision.transforms.Resize(self.target_size, antialias=False)(im_pix)
-            x_var = self.normalize(x_var).to(im_pix.dtype)
+            images = torchvision.transforms.Resize(self.target_size, antialias=False)(im_pix)
+            images = self.normalize(images).to(im_pix.dtype)
         caption = self.tokenizer(prompts)
         caption = caption.to(self.device)
-        outputs = self.model(x_var, caption)
+        outputs = self.model(images, caption)
         image_features, text_features = outputs["image_features"], outputs["text_features"]
         logits = image_features @ text_features.T
         scores = torch.diagonal(logits)
